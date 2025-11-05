@@ -1,3 +1,5 @@
+environment:
+  AIRFLOW_UID: 50000
 x-airflow-common: &airflow-common
   build: ./docker/airflow
   environment:
