@@ -2,6 +2,7 @@
 x-airflow-common: &airflow-common
   build: ./docker/airflow
   environment:
+    AIRFLOW_UID: "50000"
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__CORE__FERNET_KEY: ""
@@ -66,6 +67,7 @@ services:
     restart: always
     networks:
       - shared-network
+
 
   minio:
     image: minio/minio
@@ -211,7 +213,7 @@ services:
         exec /entrypoint airflow version
     environment:
       <<: *airflow-common-env
-      _AIRFLOW_UID: "50000"
+      AIRFLOW_UID: "50000"
       _AIRFLOW_DB_UPGRADE: "true"
       _AIRFLOW_WWW_USER_CREATE: "true"
       _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-admin}
