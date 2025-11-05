@@ -196,7 +196,7 @@ services:
       airflow-init:
         condition: service_completed_successfully
     networks:
-      - airflow-network
+      - shared-network
 
   airflow-init:
     <<: *airflow-common
