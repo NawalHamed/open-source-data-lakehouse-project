@@ -64,11 +64,11 @@ services:
       start_period: 5s
     restart: always
     networks:
-      - airflow-network
+      - shared-network
 
   minio:
     image: minio/minio
-    container_name: minio
+    container_name: minio-lakehouse
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -76,6 +76,8 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
       MINIO_PROMETHEUS_AUTH_TYPE: public
+      VIRTUAL_HOST: minio-lakehouse.rihal.dev
+      VIRTUAL_PORT: 8080
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
@@ -87,7 +89,7 @@ services:
       start_period: 30s
     restart: always
     networks:
-      - airflow-network
+      - shared-network
 
   mc:
     image: minio/mc
@@ -95,7 +97,7 @@ services:
     depends_on:
       - minio
     networks:
-      - airflow-network
+      - shared-network
     entrypoint: >
       /bin/sh -c "
       until (/usr/bin/mc alias set minio http://minio:9000 minioadmin minioadmin) do echo '...waiting...' && sleep 1; done;
@@ -129,7 +131,7 @@ services:
       start_period: 120s  # Increased to give more time for migrations
     restart: always
     networks:
-      - airflow-network
+      - shared-network
 
   marquez-web:
     image: marquezproject/marquez-web:latest
@@ -151,7 +153,7 @@ services:
       start_period: 30s
     restart: always
     networks:
-      - airflow-network
+      - shared-network
 
   # ==================== AIRFLOW ====================
   
@@ -161,6 +163,9 @@ services:
     command: webserver
     ports:
       - "8080:8080"
+    environment:
+      - VIRTUAL_HOST=airflow-lakehouse.rihal.dev
+      - VIRTUAL_PORT=8080
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
       interval: 30s
@@ -173,7 +178,7 @@ services:
       airflow-init:
         condition: service_completed_successfully
     networks:
-      - airflow-network
+      - shared-network
 
   airflow-scheduler:
     <<: *airflow-common
@@ -214,7 +219,7 @@ services:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}:/sources
     networks:
-      - airflow-network
+      - shared-network
 
   # ==================== ANALYTICS ====================
   
@@ -224,6 +229,9 @@ services:
     container_name: metabase
     ports:
       - "3000:3000"
+    environment:
+      - VIRTUAL_HOST=metabase-lakehouse.rihal.dev
+      - VIRTUAL_PORT=3000
     depends_on:
       - minio
     healthcheck:
@@ -232,13 +240,13 @@ services:
       retries: 3
     restart: always
     networks:
-      - airflow-network
+      - shared-network
 
   metabase-setup:
     image: alpine:3.21
     container_name: metabase-setup
     networks:
-      - airflow-network
+      - shared-network
     depends_on:
       metabase:
         condition: service_healthy
@@ -266,6 +274,8 @@ services:
       - ./docker/trino/config.properties:/etc/trino/config.properties
     environment:
       - TRINO_ENVIRONMENT=production
+      - VIRTUAL_HOST=trino-lakehouse.rihal.dev
+      - VIRTUAL_PORT=8081
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/v1/info"]
       interval: 30s
@@ -273,7 +283,7 @@ services:
       retries: 5
       start_period: 30s
     networks:
-      - airflow-network
+      - shared-network
     depends_on:
       - minio
 
@@ -307,7 +317,7 @@ services:
       trino --server trino:8081 --file /init-tables.sql || echo 'Init failed, will retry on restart'
       "
     networks:
-      - airflow-network
+      - shared-network
     restart: on-failure
 
   # ==================== OBSERVABILITY ====================
@@ -331,7 +341,7 @@ services:
       - '--web.listen-address=:9102'
     restart: always
     networks:
-      - airflow-network
+      - shared-network
 
   prometheus:
     image: prom/prometheus:latest
@@ -349,7 +359,7 @@ services:
       - '--web.console.templates=/usr/share/prometheus/consoles'
     restart: always
     networks:
-      - airflow-network
+      - shared-network
       
   prometheus-pushgateway:
     image: prom/pushgateway:latest
@@ -363,7 +373,7 @@ services:
       retries: 3
     restart: always
     networks:
-      - airflow-network
+      - shared-network
 
 
   grafana:
@@ -377,6 +387,8 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_SERVER_ROOT_URL=http://localhost:3001
       - GF_INSTALL_PLUGINS=grafana-piechart-panel
+      - VIRTUAL_HOST=grafana-lakehouse.rihal.dev
+      - VIRTUAL_PORT=3001
     volumes:
       - grafana-data:/var/lib/grafana
       - ./docker/grafana/provisioning:/etc/grafana/provisioning
@@ -385,7 +397,7 @@ services:
       - prometheus
     restart: always
     networks:
-      - airflow-network
+      - shared-network
 
 volumes:
   airflow-db-volume:
@@ -395,4 +407,5 @@ volumes:
   loki-data:
 
 networks:
-  airflow-network:
+  shared-network:
+    external: true
